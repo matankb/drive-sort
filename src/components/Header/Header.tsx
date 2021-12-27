@@ -9,16 +9,15 @@ interface HeaderProps {
   button?: JSX.Element | false;
   signedIn: boolean;
   appLaunched: boolean;
+  email?: string;
 }
 
-export default function Header({ signedIn, appLaunched }: HeaderProps) {
+export default function Header({ signedIn, appLaunched, email }: HeaderProps) {
 
   const menu = (
     <Menu>
-      <Menu.Item icon={<ReloadOutlined />}>
-        <a target="_blank" rel="noopener noreferrer" href="http://www.alipay.com/">
+      <Menu.Item icon={<ReloadOutlined />} key="refresh">
           Refresh
-        </a>
       </Menu.Item>
     </Menu>
   );
@@ -47,7 +46,7 @@ export default function Header({ signedIn, appLaunched }: HeaderProps) {
       style={{ border: '1px solid rgb(235, 237, 240)', marginBottom: 10 }}
       avatar={{ src: logo }}
       extra={[
-        <span>205matan@gmail.com</span>,
+        <span>{ email }</span>,
         signedIn && (
           <Logout />
         ),

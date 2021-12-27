@@ -48,6 +48,11 @@ export default class DriveApi {
     gapi.auth2.getAuthInstance().isSignedIn.listen(callback);
   }
 
+  static getUserEmail() {
+    const user = gapi.auth2.getAuthInstance().currentUser.get();
+    return user?.getBasicProfile()?.getEmail();
+  }
+  
   /** DRIVE FILES */
 
   private static async fetchRawFiles(onPartialLoaded: (count: number) => void) {

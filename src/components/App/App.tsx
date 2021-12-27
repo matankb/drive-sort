@@ -11,6 +11,7 @@ interface AppState {
   clientInit: boolean;
   signedIn: boolean;
   appLaunched: boolean;
+  email?: string;
 }
 
 class App extends React.Component<{}, AppState> {
@@ -19,14 +20,17 @@ class App extends React.Component<{}, AppState> {
     clientInit: false,
     signedIn: false,
     appLaunched: false,
+    email: undefined,
   }
 
   async componentDidMount() {
     await DriveApi.init();
-    this.setState({ signedIn: DriveApi.isSignedIn(), clientInit: true });
+    const email = DriveApi.getUserEmail();
+    this.setState({ signedIn: DriveApi.isSignedIn(), clientInit: true, email });
 
-    DriveApi.addSigninListener((signedIn: boolean) => {
-      this.setState({ signedIn, appLaunched: signedIn });
+    DriveApi.addSigninListener(async (signedIn: boolean) => {
+      const email = DriveApi.getUserEmail();
+      this.setState({ signedIn, appLaunched: signedIn, email });
     })
   }
 
@@ -40,7 +44,11 @@ class App extends React.Component<{}, AppState> {
   render() {
     return (
       <div className="App">
-        <Header signedIn={this.state.signedIn} appLaunched={this.state.appLaunched} />
+        <Header 
+          signedIn={this.state.signedIn} 
+          appLaunched={this.state.appLaunched} 
+          email={this.state.signedIn ? this.state.email : undefined}
+        />
         {
           !this.state.appLaunched
             ? <LandingPage
