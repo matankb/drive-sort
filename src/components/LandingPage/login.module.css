@@ -1,0 +1,14 @@
+.landing-page {
+  text-align: center;
+  margin-top: 50px;
+}
+
+.login-button {
+  margin-top: 20px;
+}
+
+.warning {
+  text-align: left;
+  width: 450px;
+  margin: 20px auto !important;
+}
