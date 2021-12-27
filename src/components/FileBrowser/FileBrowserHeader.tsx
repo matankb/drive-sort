@@ -57,7 +57,7 @@ export default function FileBrowserHeader(props: FileBrowserHeaderProps) {
             <Button
               type={props.selected ? 'primary' : 'default'}
               disabled={!props.selected}
-              onClick={() => props.handleMove}
+              onClick={props.handleMove}
             >
               Move Selected
             </Button>

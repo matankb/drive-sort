@@ -83,14 +83,15 @@ export class FileSort extends React.Component<{}, FileSortState> {
 
   async moveFiles(files: DriveFile[], source?: DriveFile, target?: DriveFile) {
     if (!target || !source) {
-      return { newSourceFolder: source, newTargetFolder: target };
+      return { newFiles: files, newSourceFolder: source, newTargetFolder: target };
     }
+
     this.setState({ moving: true });
     const newParent = target;
     for (const file of files) {
       await DriveApi.moveFile(file, target);
     }
-
+    
     const newFiles = [...(this.state.allFiles || [])].map(file => {
       if (files.find(f => f.id === file.id)) { // selected file
         return {
@@ -115,7 +116,7 @@ export class FileSort extends React.Component<{}, FileSortState> {
         return file;
       }
     });
-    const newFileTree = await DriveApi.createFileTree(newFiles);
+    const newFileTree = await DriveApi.createFileTree(newFiles, this.state.driveRoot);
     const newSourceFolder = findFolderInTree(source.id, newFileTree);
     const newTargetFolder = findFolderInTree(newParent.id, newFileTree);
     this.setState({
@@ -124,29 +125,37 @@ export class FileSort extends React.Component<{}, FileSortState> {
       moving: false
     });
     return {
+      newFiles: newFiles.filter(f => files.find(file => file.id === f.id)),
       newSourceFolder,
       newTargetFolder,
     }
   }
 
   handleMoveClick = async (files: DriveFile[]) => {
-    if (!this.state.targetCurrentFolder || !this.state.sourceCurrentFolder || !this.state.allFiles) {
+    const { sourceCurrentFolder, targetCurrentFolder } = this.state;
+
+    if (!targetCurrentFolder || !sourceCurrentFolder || !this.state.allFiles) {
       return;
     }
 
-    if (files.length === 1 && files[0].parentId === this.state.targetCurrentFolder.id) {
-      message.info(`"${files[0].name.trim()}" is already in "${this.state.targetCurrentFolder.name}"`)
+    if (files.length === 1 && files[0].parentId === targetCurrentFolder.id) {
+      message.info(`"${files[0].name.trim()}" is already in "${targetCurrentFolder.name}"`)
       return;
     }
 
-    const newFolders = await this.moveFiles(files, this.state.sourceCurrentFolder, this.state.targetCurrentFolder)
+    const {
+      newFiles, 
+      newSourceFolder, 
+      newTargetFolder 
+    } = await this.moveFiles(files, sourceCurrentFolder, targetCurrentFolder);
+
     this.setState({
-      sourceCurrentFolder: newFolders.newSourceFolder,
-      targetCurrentFolder: newFolders.newTargetFolder,
+      sourceCurrentFolder: newSourceFolder,
+      targetCurrentFolder: newTargetFolder,
     })
 
-    const sourceId = this.state.sourceCurrentFolder.id;
-    const targetId = this.state.targetCurrentFolder.id;
+    const sourceId = sourceCurrentFolder.id;
+    const targetId = targetCurrentFolder.id;
 
     const handleUndo = async () => {
       message.destroy();
@@ -155,7 +164,9 @@ export class FileSort extends React.Component<{}, FileSortState> {
       }
       const originalSource = findFolderInTree(sourceId, this.state.fileTree);
       const originalTarget = findFolderInTree(targetId, this.state.fileTree);
-      const newUndoFolders = await this.moveFiles(files, originalTarget, originalSource);
+      console.log(originalSource?.name, originalTarget?.name);
+      
+      const newUndoFolders = await this.moveFiles(newFiles, originalTarget, originalSource);
       this.setState({
         sourceCurrentFolder: newUndoFolders.newTargetFolder,
         targetCurrentFolder: newUndoFolders.newSourceFolder
