@@ -42,6 +42,7 @@ interface FileBrowserProps {
   currentFolder: DriveFile;
   showSpinner: boolean;
   handleMove?: (files: DriveFile[]) => void;
+  handleDelete?: (file: DriveFile) => void;
   handleSwapClick?: () => void;
   setCurrentFolder: (folder: DriveFile) => void;
 }
@@ -115,6 +116,11 @@ export default function FileBrowser({ tree, role, ...props }: FileBrowserProps) 
         }}
         onPreview={() => {
           setPreview(file)
+        }}
+        onDelete={() => {
+          if (props.handleDelete) {
+            props.handleDelete(file);
+          }
         }}
       />
     )

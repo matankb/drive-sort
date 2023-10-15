@@ -23,7 +23,8 @@ declare namespace gapi.client {
       name: string;
     }
     interface PatchParameters {
-      addParents: string; 
+      // addParents: string; 
     }
+    const changes: any;
   }
 }

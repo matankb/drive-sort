@@ -2,7 +2,7 @@ import React from 'react';
 import classNames from 'classnames'
 
 import { List, Button } from 'antd';
-import { FolderFilled, FileOutlined, CheckOutlined, EyeOutlined } from '@ant-design/icons';
+import { FolderFilled, FileOutlined, CheckOutlined, EyeOutlined, DeleteOutlined } from '@ant-design/icons';
 
 import { DriveFile } from '../../api/drive-api';
 import style from './file-browser.module.css';
@@ -15,6 +15,7 @@ interface FileItemProps {
   onClick: () => void;
   onMove: () => void;
   onPreview: () => void;
+  onDelete: () => void;
   role: 'source' | 'target';
 }
 
@@ -32,7 +33,10 @@ export default function FileItem({ file, selected, onSelect, onClick, role, show
       )}
       actions={isSourceFile ? [
         isSourceFile && <Button type="link" onClick={props.onMove}>Move</Button>,
-        isSourceFile && <Button className={style['file-item-preview-button']} shape="circle" icon={<EyeOutlined />} onClick={props.onPreview} />
+        isSourceFile && <>
+          <Button className={style['file-item-preview-button']} shape="circle" icon={<EyeOutlined />} onClick={props.onPreview} />
+          <Button className={style['file-item-preview-button']} shape="circle" icon={<DeleteOutlined />} onClick={props.onDelete} />
+        </>
       ] : []}
       onClick={onClick}
     >

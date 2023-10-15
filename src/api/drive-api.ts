@@ -12,6 +12,7 @@ export interface DriveFile {
   parentId: string;
   icon: string; // link to icon
   children: DriveFile[];
+  ownedByMe: boolean;
 }
 
 export default class DriveApi {
@@ -58,12 +59,11 @@ export default class DriveApi {
   private static async fetchRawFiles(onPartialLoaded: (count: number) => void) {
     const files = [];
     let nextPageToken;
-
     do {
 
       const baseConfig = {
         pageSize: 1000,
-        q: 'trashed != true',
+        q: 'trashed != true and ("me" in owners)',
         fields: 'nextPageToken, files(id, name, parents, mimeType, iconLink)'
       }
 
@@ -80,7 +80,6 @@ export default class DriveApi {
       files.push(...result.files); // @ts-ignore
       onPartialLoaded(files.length);
     } while (nextPageToken);
-
     return files;
   }
 
@@ -97,35 +96,10 @@ export default class DriveApi {
           icon: file.iconLink,
           type: file.mimeType === 'application/vnd.google-apps.folder' ? 'folder' : 'file',
           parentId: file.parents[0],
-          children: []
+          children: [],
+          ownedByMe: file.ownedByMe,
         }
       })
-  }
-
-  // TODO: handle multiple folders named "My Drive"
-  private static async findRoot(files: DriveFile[]): Promise<DriveFile | undefined> {
-    const scannedIds: string[] = [];
-    const unparentedFiles = files.filter(f => f.parentId).filter(f => !files.find(p => f.parentId === p.id));
-    for (const file of unparentedFiles) {
-      if (!scannedIds.includes(file.parentId)) {
-        const parent = await gapi.client.drive.files.get({
-          fileId: file.parentId
-        });
-        const parentName = parent.result.name;
-        if (parentName === 'My Drive') {
-          const file = parent.result;
-          return {
-            id: file.id,
-            name: 'My Drive',
-            type: 'folder',
-            parentId: '',
-            icon: '', // icon will never be displayed
-            children: []
-          }
-        }
-        scannedIds.push(file.parentId);
-      }
-    }
   }
 
   private static constructFileTree(files: DriveFile[], root: DriveFile) {
@@ -139,10 +113,43 @@ export default class DriveApi {
     return root;
   }
 
+  // TODO: handle multiple folders named "My Drive"
+  static async findRoot(files: DriveFile[]): Promise<DriveFile | undefined> {
+    const scannedIds: string[] = [];
+    const unparentedFiles = files
+      .filter(f => f.parentId)
+      .filter(f => !files.find(p => f.parentId === p.id));
+
+    console.log(unparentedFiles);
+    
+    for (const file of unparentedFiles) {
+      if (!scannedIds.includes(file.parentId)) {
+        const parent = await gapi.client.drive.files.get({
+          fileId: file.parentId
+        });
+        const parentName = parent.result.name;
+        console.log(file.name, parentName, file.ownedByMe);
+        if (parentName === 'My Drive') {
+          const file = parent.result;
+          return {
+            id: file.id,
+            name: 'My Drive',
+            type: 'folder',
+            parentId: '',
+            icon: '', // icon will never be displayed
+            children: [],
+            ownedByMe: true,
+          }
+        }
+        scannedIds.push(file.parentId);
+      }
+    }
+  }
+
   // getFiles will call onPartialLoaded every time a new batch of files is loaded
   static async getFiles(onPartialLoaded: (loadedCount: number) => void) {
     const USE_CACHE = false;
-    const SIMULATE_DELAY = true;
+    const SIMULATE_DELAY = false;
 
     if (USE_CACHE) {
       console.info('Reading from development cache...');
@@ -162,13 +169,13 @@ export default class DriveApi {
       : await this.fetchRawFiles(onPartialLoaded);
     localStorage.setItem('rawFiles', JSON.stringify(rawFiles));
     const files = this.transformRawFiles(this.filterParentlessRawFiles(rawFiles));
+    
     return files;
   }
 
-  static async createFileTree(files: DriveFile[]) {
-    const root = await this.findRoot(files);
+  static createFileTree(files: DriveFile[], root?: DriveFile) {
     if (!root) {
-      throw new Error('Cannot find root');
+      throw new Error('Cannot find root'); // TODO: UI error handling
     }
     const fileTree = this.constructFileTree([...files, root], root);
     return fileTree;
@@ -180,6 +187,22 @@ export default class DriveApi {
       removeParents: file.parentId,
       addParents: folder.id
     });
+  }
+
+  static deleteFile(file: DriveFile) {
+    return gapi.client.drive.files.update({ 
+      fileId: file.id, 
+      requestBody: { 
+        trashed: true 
+      } 
+    });
+
+  }
+
+  static undeleteFile(file: DriveFile) {
+    return gapi.client.drive.files.untrash({
+      fileId: file.id,
+    })
   }
 
 }

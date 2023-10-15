@@ -26,10 +26,11 @@ function findFolderInTree(id = '', tree: DriveFile): DriveFile | undefined {
 interface FileSortState {
   fileTree?: DriveFile;
   allFiles?: DriveFile[];
+  driveRoot?: DriveFile;
 
   loadingFileTreeStatus: LoadingFileTreeStatus;
   loadedFilesCount: number;
-  moving: boolean;
+  showSpinner: boolean;
 
   sourceCurrentFolder?: DriveFile;
   targetCurrentFolder?: DriveFile;
@@ -42,9 +43,10 @@ export class FileSort extends React.Component<{}, FileSortState> {
     this.state = {
       fileTree: undefined,
       allFiles: undefined,
+      driveRoot: undefined,
       loadingFileTreeStatus: LoadingFileTreeStatus.NotLoading,
       loadedFilesCount: 0,
-      moving: false
+      showSpinner: false
     }
   }
 
@@ -52,9 +54,11 @@ export class FileSort extends React.Component<{}, FileSortState> {
     this.setState({ loadingFileTreeStatus: LoadingFileTreeStatus.GettingFiles })
     const files = await DriveApi.getFiles(count => this.setState({ loadedFilesCount: count }));
     this.setState({ loadingFileTreeStatus: LoadingFileTreeStatus.CreatingTree, allFiles: files });
-    const fileTree = await DriveApi.createFileTree(files);
+    const driveRoot = await DriveApi.findRoot(files);
+    const fileTree = await DriveApi.createFileTree(files, driveRoot);
     this.setState({
       fileTree,
+      driveRoot,
       loadingFileTreeStatus: LoadingFileTreeStatus.NotLoading,
       sourceCurrentFolder: fileTree,
       targetCurrentFolder: fileTree,
@@ -86,7 +90,7 @@ export class FileSort extends React.Component<{}, FileSortState> {
       return { newFiles: files, newSourceFolder: source, newTargetFolder: target };
     }
 
-    this.setState({ moving: true });
+    this.setState({ showSpinner: true });
     const newParent = target;
     for (const file of files) {
       await DriveApi.moveFile(file, target);
@@ -122,7 +126,7 @@ export class FileSort extends React.Component<{}, FileSortState> {
     this.setState({
       allFiles: newFiles,
       fileTree: newFileTree,
-      moving: false
+      showSpinner: false
     });
     return {
       newFiles: newFiles.filter(f => files.find(file => file.id === f.id)),
@@ -164,7 +168,6 @@ export class FileSort extends React.Component<{}, FileSortState> {
       }
       const originalSource = findFolderInTree(sourceId, this.state.fileTree);
       const originalTarget = findFolderInTree(targetId, this.state.fileTree);
-      console.log(originalSource?.name, originalTarget?.name);
       
       const newUndoFolders = await this.moveFiles(newFiles, originalTarget, originalSource);
       this.setState({
@@ -177,6 +180,62 @@ export class FileSort extends React.Component<{}, FileSortState> {
     message.success(
       <span>
         Moved {files.length} file{files.length > 1 ? 's' : ''}!
+        <Button type="link" onClick={handleUndo}>Undo</Button>
+      </span>
+    );
+  }
+
+  reconstructFileTree(newFiles: DriveFile[]) {
+    const { fileTree, sourceCurrentFolder, targetCurrentFolder, allFiles } = this.state;
+
+    if (!fileTree || !sourceCurrentFolder || !targetCurrentFolder || !allFiles) {
+      return;
+    }
+
+    const newFileTree = DriveApi.createFileTree(newFiles, this.state.driveRoot);
+    const newSource = findFolderInTree(sourceCurrentFolder.id, newFileTree);
+    const newTarget = findFolderInTree(targetCurrentFolder.id, newFileTree);
+
+    this.setState({
+      allFiles: newFiles,
+      sourceCurrentFolder: newSource,
+      targetCurrentFolder: newTarget,
+    })
+  }
+
+  handleDeleteClick = async (file: DriveFile) => {
+    this.setState({ showSpinner: true });
+
+    if (!this.state.allFiles) {
+      return;
+    }
+
+    await DriveApi.deleteFile(file);
+    const newFiles = this.state.allFiles.filter(f => f.id !== file.id);
+
+    this.reconstructFileTree(newFiles);
+    this.setState({ 
+      showSpinner: false
+    });
+
+    const handleUndo = async () => {
+      message.destroy();
+      this.setState({ showSpinner: true });
+      if (!this.state.fileTree) {
+        return;
+      }
+      
+      await DriveApi.undeleteFile(file);
+      const restoredFiles = [...newFiles, file];
+      this.reconstructFileTree(restoredFiles);
+
+      this.setState({ showSpinner: false });
+      message.success('Undo complete!');
+    }
+
+    message.success(
+      <span>
+        Deleted file!
         <Button type="link" onClick={handleUndo}>Undo</Button>
       </span>
     );
@@ -205,15 +264,16 @@ export class FileSort extends React.Component<{}, FileSortState> {
                 tree={this.state.fileTree}
                 role="source"
                 handleMove={this.handleMoveClick}
+                handleDelete={this.handleDeleteClick}
                 handleSwapClick={this.handleFileBrowserSwap}
-                showSpinner={this.state.moving}
+                showSpinner={this.state.showSpinner}
                 currentFolder={this.state.sourceCurrentFolder}
                 setCurrentFolder={folder => this.setState({ sourceCurrentFolder: folder }) }
               />
               <FileBrowser
                 tree={this.state.fileTree}
                 role="target"
-                showSpinner={this.state.moving}
+                showSpinner={this.state.showSpinner}
                 currentFolder={this.state.targetCurrentFolder}
                 setCurrentFolder={folder => this.setState({ targetCurrentFolder: folder }) }
               />

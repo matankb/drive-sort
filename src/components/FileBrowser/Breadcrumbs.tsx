@@ -11,6 +11,33 @@ function getParentChain(file: DriveFile): DriveFile[] {
   return [file];
 }
 
+const maxBreadcrumbCharacters = 22;
+
+// overflows if character length is too long
+function shouldOverflow(parentChain: DriveFile[]) {
+  const totalCharacters = parentChain.reduce((a, b) => a + b.name.length, 0);
+  return totalCharacters > maxBreadcrumbCharacters;
+}
+
+function getOverflowItems(parentChain: DriveFile[]) {
+  const items: DriveFile[] = parentChain.slice(1, -1);
+  let totalCharacters = parentChain[0].name.length + (parentChain.at(-1)?.name.length || 0);
+
+  for (let i = parentChain.length - 2; i > 0; i--) {
+    const folder = parentChain[i];
+    const nextTotalCharacters = totalCharacters + folder.name.length;
+
+    if (nextTotalCharacters > maxBreadcrumbCharacters) {
+      return items;
+    }
+
+    items.pop();
+    totalCharacters = nextTotalCharacters;
+  }
+  
+  return items;
+}
+
 interface BreadcrumbsProps {
   folder: DriveFile;
   onClick: (folder: DriveFile) => void;
@@ -18,12 +45,13 @@ interface BreadcrumbsProps {
 
 export default function Breadcrumbs({ folder, onClick }: BreadcrumbsProps) {
   const parentChain = getParentChain(folder);
-  const overflow = parentChain.length > 3;
+  const overflow = shouldOverflow(parentChain);
 
   let overflowMenu;
 
   if (overflow) {
-    const overflowItems = parentChain.splice(1, parentChain.length - 3);
+    const overflowItems = getOverflowItems(parentChain);
+    parentChain.splice(1, overflowItems.length); // remove overflow items from parentChain
     overflowMenu = (
       <Menu>
         {
